@@ -6,6 +6,7 @@ using UnityEditor.Callbacks;
 using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 using Vector2 = UnityEngine.Vector2;
+using Vector3 = UnityEngine.Vector3;
 
 public class RoomNodeGraphEditor : EditorWindow
 {
@@ -13,6 +14,10 @@ public class RoomNodeGraphEditor : EditorWindow
     private GUIStyle roomNodeStyle;
     private GUIStyle roomNodeSelectedStyle;
     private static RoomNodeGraphSO currentRoomNodeGraph;
+
+    private Vector2 graphOffset;
+    private Vector2 graphDrag;
+    
     private RoomNodeSO currentRoomNode = null;
     private RoomNodeTypeListSO roomNodeTypeList;
     
@@ -24,7 +29,10 @@ public class RoomNodeGraphEditor : EditorWindow
     
     // Connecting line values
     private const float connectingLineWidth = 3f;
-    private const float connectingLineArrowSize = 6f; 
+    private const float connectingLineArrowSize = 6f;
+
+    private const float gridLarge = 100f;
+    private const float gridSmall = 25;
     
     [MenuItem("Room Node Graph Editor", menuItem = "Window/Dungeon Editor/Room Node Graph Editor")]
 
@@ -93,6 +101,8 @@ public class RoomNodeGraphEditor : EditorWindow
         // If a scriptable object of type RoomNodeGraphSO has been selected then process
         if (currentRoomNodeGraph != null)
         {
+            DrawBackgroundGrid(gridSmall, 0.2f, Color.gray);
+            DrawBackgroundGrid(gridLarge, 0.3f, Color.grey);
             DrawDraggedLine();
             ProcessEvents(Event.current);
             DrawRoomConnections();
@@ -105,6 +115,36 @@ public class RoomNodeGraphEditor : EditorWindow
         }
     }
 
+    /// <summary>
+    /// Draw a background grid for the room node graph editor
+    /// </summary>
+    /// <param name="gridSize"></param>
+    /// <param name="gripOpacity"></param>
+    /// <param name="gridColor"></param>
+    private void DrawBackgroundGrid(float gridSize, float gridOpacity, Color gridColor)
+    {
+        int verticalLineCount = Mathf.CeilToInt((position.width + gridSize) / gridSize);
+        int horizontalLineCount = Mathf.CeilToInt((position.height + gridSize) / gridSize);
+
+        Handles.color = new Color(gridColor.r, gridColor.g, gridColor.b, gridOpacity);
+        graphOffset += graphDrag * 0.5f;
+
+        Vector3 gridOffset = new Vector3(graphOffset.x % gridSize, graphOffset.y % gridSize, 0);
+        
+        for (int i = 0; i < verticalLineCount; i++)
+        {
+            Handles.DrawLine(new Vector3(gridSize * i, -gridSize, 0) + gridOffset, new Vector3(gridSize * i, position.height + gridSize, 0f) + gridOffset);
+        }
+
+        for (int j = 0; j < horizontalLineCount; j++)
+        {
+            Handles.DrawLine(new Vector3(-gridSize, gridSize * j, 0) + gridOffset, new Vector3(position.width + gridSize, gridSize * j, 0f) + gridOffset);
+        }
+        
+        Handles.color = Color.white;
+
+    }
+
     private void DrawDraggedLine()
     {
         if (currentRoomNodeGraph.linePosition != Vector2.zero)
@@ -115,6 +155,10 @@ public class RoomNodeGraphEditor : EditorWindow
 
     private void ProcessEvents(Event currentEvent)
     {
+        // Reset graph drag
+        graphDrag = Vector2.zero;
+        
+        
         if (currentRoomNode == null || currentRoomNode.isLeftClickDragging == false)
         {
             currentRoomNode = IsMouseOverRoomNode(currentEvent);
@@ -377,10 +421,33 @@ public class RoomNodeGraphEditor : EditorWindow
         {
             ProcessRightMouseDragEvent(currentEvent);
         }
+        else if (currentEvent.button == 0)
+        {
+            ProcessLeftMouseDragEvent(currentEvent.delta);
+        }
+    }
+
+    /// <summary>
+    /// Process left mouse drag event - drag room node graph
+    /// </summary>
+    /// <param name="dragDelta"></param>
+    private void ProcessLeftMouseDragEvent(Vector2 dragDelta)
+    {
+        graphDrag = dragDelta;
+
+        for (int i = 0; i < currentRoomNodeGraph.roomNodeList.Count; i++)
+        {
+            currentRoomNodeGraph.roomNodeList[i].DragNode(dragDelta);
+        }
+
+        GUI.changed = true;
     }
     
-    
 
+    /// <summary>
+    /// Process right mouse drag event - draw line
+    /// </summary>
+    /// <param name="currentEvent"></param>
     private void ProcessRightMouseDragEvent(Event currentEvent)
     {
         if (currentRoomNodeGraph.roomNodeToDrawLineFrom != null)
